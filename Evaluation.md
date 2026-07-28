@@ -223,19 +223,109 @@ body_vs_toc = 0.0
 
 ### Section Confidence
 
-Section confidence evaluates the content extracted between the current Item heading and the next selected Item heading.
+Section confidence answers:
 
-Possible evidence includes:
+> Does `start` and `end` correctly surround this Item's content?
 
-- The section is not empty.
-- Its boundaries do not overlap another Item.
-- The content is a continuous slice of the source.
-- The section does not end in the middle of a paragraph.
-- Its length is not clearly implausible.
+For each extracted Item:
 
-A short section is not automatically incorrect because valid sections may contain only `None`, `Not applicable`, or an incorporation-by-reference statement.
+```text
+section_confidence =
+    0.40 × end_boundary
+  + 0.40 × no_skipped_heading
+  + 0.20 × content_present
+```
 
-The exact scoring rules have not yet been finalized.
+#### End Boundary
+
+An Item normally ends where the next selected Item heading begins.
+
+Use the heading confidence of that next Item:
+
+```text
+end_boundary = heading confidence of the next selected Item
+```
+
+For the final Item, a recognized terminal marker such as `SIGNATURES` may receive `1.0`.
+
+#### No Skipped Heading
+
+Check whether another strong, unselected Item heading appears between `start` and `end`:
+
+```text
+No unselected heading         → 1.0
+One uncertain heading         → 0.5
+Strong unselected heading     → 0.0
+```
+
+For example, if Item 1A ends at Item 2 but a strong Item 1B heading exists between them, Item 1A probably has the wrong end boundary.
+
+#### Content Present
+
+```text
+100 or more characters                   → 1.0
+Recognized short response such as `None` → 1.0
+Other content below 100 characters       → 0.5
+Empty content                            → 0.0
+```
+
+Valid short responses may also include `Not applicable` or an incorporation-by-reference statement.
+
+#### Hard Failures
+
+These conditions set section confidence to `0`:
+
+```text
+start >= end
+section overlaps another extracted Item
+content != source[start:end]
+```
+
+#### Examples
+
+Correctly bounded Item:
+
+```text
+end_boundary      = 0.98
+no_skipped_heading = 1.00
+content_present    = 1.00
+
+section_confidence =
+    0.40 × 0.98
+  + 0.40 × 1.00
+  + 0.20 × 1.00
+  = 0.992
+```
+
+Item 1B was accidentally included inside Item 1A:
+
+```text
+end_boundary       = 0.97
+no_skipped_heading = 0.00
+content_present    = 1.00
+
+section_confidence =
+    0.40 × 0.97
+  + 0.40 × 0.00
+  + 0.20 × 1.00
+  = 0.588
+```
+
+Valid short section:
+
+```text
+ITEM 1B. UNRESOLVED STAFF COMMENTS
+None.
+ITEM 1C. CYBERSECURITY
+```
+
+```text
+end_boundary       = 0.95
+no_skipped_heading = 1.00
+content_present    = 1.00
+
+section_confidence = 0.98
+```
 
 ## Filing Confidence
 
