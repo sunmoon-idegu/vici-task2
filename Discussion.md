@@ -51,39 +51,3 @@ The model should preferably return line numbers, node IDs, or other markers that
 If the small model's result still does not meet the threshold, a more capable language model handles difficult cases such as nonstandard headings, confusion between a table of contents and the body, old SEC document formats, or damaged document structures.
 
 This is the final fallback. Its result is returned even if its confidence remains below the acceptance threshold, with an explicit warning that manual review is recommended.
-
-## Confidence and Stopping Conditions
-
-Results from all three layers should be evaluated by the same independent validator rather than relying directly on a language model's self-reported confidence. This gives confidence scores a consistent meaning across extraction methods.
-
-The confidence evaluation may consider:
-
-- Whether the expected Items were found.
-- Whether Items occur in a valid order.
-- Whether Item boundaries overlap, are reversed, or are empty.
-- Whether each detected heading exists in the source document.
-- Whether a heading resembles the standard title for that Item.
-- Whether the extraction may have selected entries from a table of contents.
-- Whether Parts and Items are paired plausibly.
-- Whether section lengths are anomalous.
-- Whether substantial content is missing or unexplained gaps exist.
-
-The initial design uses the same acceptance threshold for each layer, provisionally `0.90`:
-
-```text
-Layer 1 confidence >= 0.90 → stop and return
-Layer 2 confidence >= 0.90 → stop and return
-Layer 3                    → always return
-```
-
-The `0.90` threshold is initially an engineering setting. After a manually labeled evaluation set has been created, both the threshold and confidence calculation must be calibrated against observed results. Until then, the value is more accurately an extraction quality score than a statistically calibrated probability of correctness.
-
-The final output should include:
-
-- The extraction layer used.
-- Filing-level and Item-level confidence scores.
-- Extracted Item content and its source boundaries.
-- Evaluation results for the layers that ran.
-- Warnings about missing Items, conflicts, or low confidence.
-
-If Layer 3 does not meet the acceptance threshold, its result is still returned, but its status must identify it as low confidence and in need of manual review.
