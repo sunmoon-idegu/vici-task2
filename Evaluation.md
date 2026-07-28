@@ -1,36 +1,28 @@
 # Evaluation
 
-## Evaluation Structure
+## Item-Level Confidence
 
-Evaluation happens at two levels:
-
-1. Evaluate each extracted Item.
-2. Combine the Item results into one confidence score for the complete filing extraction.
-
-Each Item is evaluated using four signals:
+Each extracted Item is evaluated using three signals:
 
 ```text
 item_confidence =
-    0.35 × heading
-  + 0.30 × sequence
-  + 0.20 × body_vs_toc
-  + 0.15 × section
+    weighted combination of:
+    - heading
+    - body_vs_toc
+    - section
 ```
 
-The four signals answer different questions:
+The three Item-level signals answer different questions:
 
 - `heading`: Does the candidate block look like an Item heading?
-- `sequence`: Is the Item in a valid position relative to the surrounding Items?
 - `body_vs_toc`: Is this the body heading rather than an entry in a table of contents?
 - `section`: Is the extracted content between this Item and the next Item plausibly bounded?
 
-All signals and the resulting confidence score are between `0` and `1`.
+All signals and resulting confidence scores are between `0` and `1`.
 
-The weights above are initial engineering values, not values learned by machine learning. They must later be tested and calibrated against a manually labeled evaluation set.
+The `heading` calculation is defined below. The exact Item-level weights and calculations for `body_vs_toc` and `section` are still to be discussed and finalized.
 
-The `heading` calculation is defined below. The exact calculations for `sequence`, `body_vs_toc`, and `section` are still to be discussed and finalized.
-
-## Heading Confidence
+### Heading Confidence
 
 Heading confidence answers one narrow question: does a candidate block look like an Item heading?
 
@@ -43,7 +35,7 @@ heading_confidence =
   + 0.10 × title_similarity
 ```
 
-### Item Identifier
+#### Item Identifier
 
 `item_identifier` is binary: `0` or `1`.
 
@@ -54,7 +46,7 @@ ITEM 1A. RISK FACTORS → 1
 See Item 1A           → 0
 ```
 
-### Heading Format
+#### Heading Format
 
 ```text
 heading_format =
@@ -81,7 +73,7 @@ If it is short, isolated, and uppercase:
 heading_format = 0.4 + 0.3 + 0.3 = 1.0
 ```
 
-### Title Similarity
+#### Title Similarity
 
 `title_similarity` is between `0` and `1`.
 
@@ -103,7 +95,7 @@ empty title     vs Risk Factors → 0.0
 
 Exact title wording is only supporting evidence because titles and Item structures may vary across filing periods.
 
-## Complete Examples
+#### Heading Examples
 
 ```text
 ITEM 1A. RISK FACTORS
@@ -140,41 +132,96 @@ heading_confidence = 0.0
 
 This score does not determine whether the candidate is a body heading or a table-of-contents entry. That requires a separate confidence component.
 
-## Sequence Confidence
-
-Sequence confidence evaluates whether an Item appears in a valid order relative to the previous and next extracted Items.
-
-For example:
-
-```text
-Item 1 → Item 1A → Item 2
-```
-
-is structurally plausible, while:
-
-```text
-Item 1A → Item 1
-```
-
-is not.
-
-The calculation must allow valid missing or inapplicable Items. Its exact scoring rules have not yet been finalized.
-
-## Body-versus-TOC Confidence
+### Body-versus-TOC Confidence
 
 This signal evaluates whether the selected heading belongs to the filing body rather than a table of contents.
 
-Possible evidence includes:
+For each heading candidate:
 
-- The heading is followed by substantial body content.
-- Nearby headings are not densely grouped together.
-- The block does not end with a page number.
-- The block is not only an internal link.
-- A later occurrence of the same Item heading exists.
+```text
+body_vs_toc =
+    0.35 × content_after
+  + 0.30 × no_toc_format
+  + 0.20 × low_heading_density
+  + 0.15 × no_later_duplicate
+```
 
-The exact scoring rules have not yet been finalized.
+#### Content After
 
-## Section Confidence
+Count the characters between the candidate and the next Item heading candidate:
+
+```text
+500 or more characters → 1.0
+100–499 characters     → 0.5
+Fewer than 100         → 0.0
+```
+
+TOC entries usually have very little content between adjacent headings.
+
+#### No TOC Format
+
+The candidate has TOC formatting when it:
+
+- Ends with a page number.
+- Contains dot leaders such as `........ 25`.
+- Is only an HTML link.
+
+```text
+TOC formatting detected → 0.0
+No TOC formatting       → 1.0
+```
+
+Examples:
+
+```text
+Item 1A. Risk Factors ........ 25 → 0.0
+Item 1A. Risk Factors            → 1.0
+```
+
+#### Low Heading Density
+
+Count other Item heading candidates within the next 1,000 characters:
+
+```text
+0–2 candidates → 1.0
+3–4 candidates → 0.5
+5 or more      → 0.0
+```
+
+A TOC usually contains many Item headings close together.
+
+#### No Later Duplicate
+
+Check whether another strong candidate for the same Item appears later in the document:
+
+```text
+Later duplicate exists → 0.0
+No later duplicate     → 1.0
+```
+
+If `Item 1A` appears near the beginning and again much later, the first occurrence is likely a TOC entry.
+
+#### Example
+
+For:
+
+```text
+Item 1A. Risk Factors ........ 25
+Item 1B. Unresolved Staff Comments ........ 40
+```
+
+a likely evaluation is:
+
+```text
+content_after       = 0.0
+no_toc_format       = 0.0
+low_heading_density = 0.0
+no_later_duplicate  = 0.0
+
+body_vs_toc = 0.0
+```
+
+### Section Confidence
 
 Section confidence evaluates the content extracted between the current Item heading and the next selected Item heading.
 
@@ -190,17 +237,56 @@ A short section is not automatically incorrect because valid sections may contai
 
 The exact scoring rules have not yet been finalized.
 
-## Filing-level Result
+## Filing Confidence
 
 The filing-level confidence determines whether the current extraction layer is accepted or whether the pipeline continues to the next layer.
 
-The initial proposal is:
+First, calculate the average confidence across all extracted Items:
 
 ```text
-filing_confidence = minimum item_confidence
+average_item_confidence =
+    sum(item_confidence) / number_of_items
 ```
 
-Using the minimum is intentionally conservative: one badly extracted Item is enough to escalate the complete filing.
+### Sequence Confidence
+
+Sequence confidence describes whether all extracted Items appear in a valid order. Calculate it from adjacent Item pairs in source order:
+
+```text
+sequence_confidence =
+    valid_adjacent_pairs / total_adjacent_pairs
+```
+
+Missing Items are allowed when the remaining Items are in valid order.
+
+```text
+["1", "1A", "2", "3"]   → valid
+["1", "2", "1A", "3"]   → invalid ordering
+["1", "1A", "1A", "2"]  → duplicate Item
+```
+
+The initial filing-level formula is:
+
+```text
+filing_confidence =
+    average_item_confidence × sequence_confidence
+```
+
+Examples:
+
+```text
+average_item_confidence = 0.95
+sequence_confidence     = 1.00
+filing_confidence       = 0.95
+```
+
+```text
+average_item_confidence = 0.95
+sequence_confidence     = 0.67
+filing_confidence       = 0.637
+```
+
+### Sequential Fallback
 
 The sequential fallback rule is:
 
