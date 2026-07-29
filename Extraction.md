@@ -4,19 +4,16 @@ This document explains in detail how the deterministic Layer 1 extractor process
 
 ## Layer 1
 
-Layer 1 is a deterministic extractor implemented in `extraction.py`. It uses regular expressions, `lxml`, document structure, and the confidence functions from `evaluation.py`. It does not use a language model.
+Layer 1 is a deterministic extractor implemented in `backend/app/services/extraction/extractors/layer1_extractor.py`. It uses regular expressions, `lxml`, document structure, and the confidence functions from `backend/app/evaluations/confidence_evaluator.py`. It does not use a language model.
 
 ## Input
 
-The main function accepts one SEC document URL:
+The backend API accepts one SEC document URL:
 
-```python
-from extraction import extract_items
-
-items = extract_items(
-    "https://www.sec.gov/Archives/edgar/data/21344/"
-    "000162828026010047/ko-20251231.htm"
-)
+```json
+{
+  "url": "https://www.sec.gov/Archives/edgar/data/21344/000162828026010047/ko-20251231.htm"
+}
 ```
 
 Supported inputs currently include:
@@ -24,13 +21,10 @@ Supported inputs currently include:
 - A direct HTML 10-K document.
 - An SEC complete-submission TXT file containing a `10-K` or `10-K405` document.
 
-For tests or already downloaded documents, the byte-level function avoids another HTTP request:
+Internally, the repository downloads and prepares a `FilingDocument`. Layer 1 consumes that prepared input without performing external I/O:
 
 ```python
-items = extract_items_from_bytes(
-    document_bytes,
-    document_type="html",  # or "txt"
-)
+items = Layer1Extractor().extract(filing_document)
 ```
 
 URL allow-listing and stronger filing-type validation will be added separately. The current HTML path assumes the supplied document is a 10-K. The TXT path explicitly selects a supported 10-K document from the submission.
@@ -147,7 +141,7 @@ Rejecting subitem headings such as `ITEM 14(a)2` prevents them from replacing th
 
 ### 5. Evaluate Each Candidate
 
-Each candidate receives two preliminary scores from `evaluation.py`:
+Each candidate receives two preliminary scores from `confidence_evaluator.py`:
 
 - `heading`: how strongly the block resembles an Item heading.
 - `body_vs_toc`: how likely it is to be a body heading instead of a table-of-contents entry.
@@ -272,11 +266,6 @@ The result is a list of dictionaries in normalized document order:
 |---|---|---:|---:|
 | Coca-Cola 2025 10-K | HTML | 23 | 0.954 |
 | Coca-Cola 1994 10-K405 | Complete-submission TXT | 14 | 0.952 |
-
-The complete outputs are stored in:
-
-- `test/ko-2025-html.json`
-- `test/ko-1994-10-k405.json`
 
 ## Current Limitations
 

@@ -5,12 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from html import escape, unescape
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
-from urllib.request import Request, urlopen
-
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Sequence, Tuple
 from lxml import etree, html
 
-from evaluation import (
+from app.evaluations.confidence_evaluator import (
     ITEM_HEADING_RE,
     HeadingCandidate,
     calculate_body_vs_toc_confidence,
@@ -23,8 +21,10 @@ from evaluation import (
     source_slice_is_valid,
 )
 
+if TYPE_CHECKING:
+    from app.models.filing_document import FilingDocument
 
-DEFAULT_USER_AGENT = "vici-task2/0.1 (educational SEC filing extractor)"
+
 SUPPORTED_FORM_TYPES = frozenset({"10-K", "10-K405"})
 BLOCK_TAGS = frozenset(
     {
@@ -140,28 +140,6 @@ class NormalizedDocument:
     text: str
     blocks: Sequence[TextBlock]
     rich_blocks: Sequence[RichBlock]
-
-
-def download_sec_document(
-    url: str,
-    *,
-    user_agent: str = DEFAULT_USER_AGENT,
-    timeout: float = 30.0,
-) -> Tuple[bytes, str]:
-    request = Request(
-        url,
-        headers={
-            "User-Agent": user_agent,
-            "Accept-Encoding": "identity",
-            "Accept": (
-                "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.sec.gov/edgar/search/",
-        },
-    )
-    with urlopen(request, timeout=timeout) as response:
-        return response.read(), response.headers.get_content_type()
 
 
 def _clean_text(text: str) -> str:
@@ -634,21 +612,17 @@ def extract_items_from_bytes(
     return evaluate_selected_items(document, candidates, selected)
 
 
-def extract_items(
-    url: str,
-    *,
-    user_agent: str = DEFAULT_USER_AGENT,
-) -> List[dict]:
-    data, content_type = download_sec_document(url, user_agent=user_agent)
-    document_type = (
-        "txt"
-        if url.lower().endswith(".txt") or content_type == "text/plain"
-        else "html"
-    )
-    return extract_items_from_bytes(data, document_type=document_type)
-
-
 def filing_confidence(items: Sequence[dict]) -> float:
     return calculate_filing_confidence(
         item["confidence"]["score"] for item in items
     )
+
+
+class Layer1Extractor:
+    """Extract Items from a prepared filing document without external I/O."""
+
+    def extract(self, document: "FilingDocument") -> List[dict]:
+        return extract_items_from_bytes(
+            document.content,
+            document_type=document.document_type,
+        )

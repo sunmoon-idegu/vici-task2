@@ -40,7 +40,7 @@ Layer 3: Large language model
 
 ### Layer 1: Regular Expressions and lxml
 
-Layer 1 is implemented in `extraction.py`. It uses separate HTML and TXT normalization paths and produces the same output schema for both.
+Layer 1 is implemented in `backend/app/services/extraction/extractors/layer1_extractor.py`. It uses separate HTML and TXT normalization paths and produces the same output schema for both.
 
 ```text
 SEC URL
@@ -57,7 +57,7 @@ HTML documents are parsed with `lxml`. Visible leaf-level block elements are con
 
 Complete-submission TXT files are first split into `<DOCUMENT>` sections. The parser selects the document whose `<TYPE>` is `10-K` or `10-K405`, removes SGML formatting tags, and converts the remaining lines into normalized text blocks.
 
-Only blocks beginning with a valid Item identifier become heading candidates. Each candidate receives heading and Body-versus-TOC scores from `evaluation.py`. When an Item occurs more than once, such as in both the TOC and body, Layer 1 selects the candidate with the strongest combined score.
+Only blocks beginning with a valid Item identifier become heading candidates. Each candidate receives heading and Body-versus-TOC scores from `backend/app/evaluations/confidence_evaluator.py`. When an Item occurs more than once, such as in both the TOC and body, Layer 1 selects the candidate with the strongest combined score.
 
 An Item begins at its selected heading and ends at the next selected heading. The final Item ends at `SIGNATURES` when that marker exists, otherwise at the end of the normalized document.
 
