@@ -130,6 +130,34 @@
       overflow-wrap: anywhere;
       font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
     }
+    .content {
+      overflow-x: auto;
+      border: 1px solid #d9dde3;
+      border-radius: 9px;
+      padding: 20px;
+      background: white;
+      line-height: 1.55;
+    }
+    .content p:first-child { margin-top: 0; }
+    .content p:last-child { margin-bottom: 0; }
+    .content table {
+      width: 100%;
+      margin: 18px 0;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .content th, .content td {
+      border: 1px solid #cbd1d9;
+      padding: 7px 9px;
+      text-align: right;
+      vertical-align: top;
+    }
+    .content th {
+      background: #eaf0f8;
+      font-weight: 700;
+    }
+    .content td:first-child, .content th:first-child { text-align: left; }
+    .content tr:nth-child(even) td { background: #f7f9fb; }
     .empty {
       color: #657080;
       text-align: center;
@@ -230,8 +258,15 @@
         metrics.append(metric);
       }
 
-      const content = document.createElement("pre");
-      content.textContent = item.content || "";
+      const content = document.createElement("div");
+      content.className = "content";
+      if (item.content_html) {
+        content.innerHTML = item.content_html;
+      } else {
+        const fallback = document.createElement("pre");
+        fallback.textContent = item.content || "";
+        content.append(fallback);
+      }
 
       preview.append(heading, metrics, content);
     }

@@ -81,6 +81,7 @@ class LocalExtractionTests(unittest.TestCase):
         items = extract_items_from_bytes(document, document_type="html")
         self.assertEqual([item["item"] for item in items], ["1", "2"])
         self.assertEqual(filing_confidence(items), 1.0)
+        self.assertIn("<p>", items[0]["content_html"])
 
 
 @unittest.skipUnless(
@@ -100,6 +101,7 @@ class LiveSecExtractionTests(unittest.TestCase):
         for item in items:
             self.assertLess(item["start"], item["end"])
             self.assertTrue(item["content"])
+            self.assertTrue(item["content_html"])
             self.assertEqual(
                 set(item["confidence"]),
                 {"score", "heading", "body_vs_toc", "section"},
@@ -107,7 +109,9 @@ class LiveSecExtractionTests(unittest.TestCase):
         return items
 
     def test_modern_html(self) -> None:
-        self._assert_result(MODERN_URL, MODERN_ITEMS, 0.90)
+        items = self._assert_result(MODERN_URL, MODERN_ITEMS, 0.90)
+        item_2 = next(item for item in items if item["item"] == "2")
+        self.assertIn("<table>", item_2["content_html"])
 
     def test_historical_complete_submission_txt(self) -> None:
         items = self._assert_result(
