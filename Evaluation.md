@@ -6,10 +6,7 @@ Each extracted Item is evaluated using three signals:
 
 ```text
 item_confidence =
-    weighted combination of:
-    - heading
-    - body_vs_toc
-    - section
+    (heading + body_vs_toc + section) / 3
 ```
 
 The three Item-level signals answer different questions:
@@ -20,7 +17,7 @@ The three Item-level signals answer different questions:
 
 All signals and resulting confidence scores are between `0` and `1`.
 
-The `heading` calculation is defined below. The exact Item-level weights and calculations for `body_vs_toc` and `section` are still to be discussed and finalized.
+Equal weights are the initial default. The implementation keeps the weights configurable so they can be calibrated later.
 
 ### Heading Confidence
 
@@ -338,43 +335,7 @@ average_item_confidence =
     sum(item_confidence) / number_of_items
 ```
 
-### Sequence Confidence
-
-Sequence confidence describes whether all extracted Items appear in a valid order. Calculate it from adjacent Item pairs in source order:
-
-```text
-sequence_confidence =
-    valid_adjacent_pairs / total_adjacent_pairs
-```
-
-Missing Items are allowed when the remaining Items are in valid order.
-
-```text
-["1", "1A", "2", "3"]   → valid
-["1", "2", "1A", "3"]   → invalid ordering
-["1", "1A", "1A", "2"]  → duplicate Item
-```
-
-The initial filing-level formula is:
-
-```text
-filing_confidence =
-    average_item_confidence × sequence_confidence
-```
-
-Examples:
-
-```text
-average_item_confidence = 0.95
-sequence_confidence     = 1.00
-filing_confidence       = 0.95
-```
-
-```text
-average_item_confidence = 0.95
-sequence_confidence     = 0.67
-filing_confidence       = 0.637
-```
+For now, filing confidence is this simple average. Sequence and completeness checks may be added later.
 
 ### Sequential Fallback
 

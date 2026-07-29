@@ -38,7 +38,61 @@ Layer 3: Large language model
 
 ### Layer 1: Regular Expressions and lxml
 
-Layer 1 uses regular expressions, DOM or text structure, and Part and Item ordering to identify Item boundaries according to the characteristics of HTML and TXT inputs. It is the fastest and least expensive extraction method and is expected to handle most filings with recognizable structures.
+Layer 1 is implemented in `extraction.py`. It uses separate HTML and TXT normalization paths and produces the same output schema for both.
+
+```text
+SEC URL
+  → download
+  → HTML or TXT normalization
+  → heading candidates
+  → candidate evaluation
+  → body-heading selection
+  → content slicing
+  → Item and filing confidence
+```
+
+HTML documents are parsed with `lxml`. Visible leaf-level block elements are converted into normalized text blocks while preserving structural metadata such as tag name, bold styling, link-only content, and normalized character offsets.
+
+Complete-submission TXT files are first split into `<DOCUMENT>` sections. The parser selects the document whose `<TYPE>` is `10-K` or `10-K405`, removes SGML formatting tags, and converts the remaining lines into normalized text blocks.
+
+Only blocks beginning with a valid Item identifier become heading candidates. Each candidate receives heading and Body-versus-TOC scores from `evaluation.py`. When an Item occurs more than once, such as in both the TOC and body, Layer 1 selects the candidate with the strongest combined score.
+
+An Item begins at its selected heading and ends at the next selected heading. The final Item ends at `SIGNATURES` when that marker exists, otherwise at the end of the normalized document.
+
+The returned value is a list of dictionaries in document order:
+
+```python
+[
+    {
+        "item": "1A",
+        "title": "RISK FACTORS",
+        "content": "...",
+        "start": 124745,
+        "end": 217125,
+        "confidence": {
+            "score": 1.0,
+            "heading": 1.0,
+            "body_vs_toc": 1.0,
+            "section": 1.0,
+        },
+    }
+]
+```
+
+The content is always a direct slice of normalized source text:
+
+```python
+content == normalized_text[start:end]
+```
+
+Initial live SEC tests:
+
+| Filing | Format | Items found | Filing confidence |
+|---|---|---:|---:|
+| Coca-Cola 2025 10-K | HTML | 23 of 23 expected | 0.954 |
+| Coca-Cola 1994 10-K405 | Complete-submission TXT | 14 of 14 expected | 0.952 |
+
+These scores evaluate structural consistency under the current heuristics. They are not yet calibrated probabilities or proof that every character boundary is correct.
 
 ### Layer 2: Small Language Model
 
