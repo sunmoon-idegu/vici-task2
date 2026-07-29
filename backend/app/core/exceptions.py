@@ -15,3 +15,7 @@ class FilingDownloadError(BackendError):
 
 class FilingExtractionError(BackendError):
     """The downloaded document could not be extracted."""
+
+
+class LLMDisambiguationError(BackendError):
+    """The language model layer could not disambiguate Item headings."""

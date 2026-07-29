@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -12,6 +16,7 @@ class Settings:
         "vici-task2/0.1 (educational SEC filing extractor)"
     )
     sec_timeout_seconds: float = 30.0
+    llm_model: str = "claude-haiku-4-5"
 
 
 settings = Settings()

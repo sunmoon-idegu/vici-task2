@@ -236,6 +236,26 @@ filing_confidence =
 
 The detailed formulas are documented in `Evaluation.md`.
 
+## Layer 2
+
+Layer 2 is implemented in `backend/app/services/extraction/extractors/layer2_extractor.py`. `ExtractionService` runs it automatically whenever the Layer 1 filing confidence is below `settings.confidence_threshold` (0.90).
+
+Layer 2 does not re-parse or rewrite the filing. It reuses Layer 1's normalization and heading-candidate detection (`normalize_html_document`/`normalize_text_document`, `find_candidates`) so it sees exactly the same candidates Layer 1 found. Most Items have only one candidate and are kept as-is. For Items with more than one candidate — typically a table-of-contents entry alongside the real body heading — Layer 2 asks a language model to pick which candidate index is the true body heading.
+
+```text
+candidates for Item 1A
+  index 4  (TOC row, is_only_html_link=True)
+  index 19 (bold body heading)
+      ↓
+  model returns candidate_index=19
+```
+
+The model only ever returns an index into the candidate list it was given; it never sees or returns filing text to slice from. The program then slices `content` from the chosen candidate's normalized offsets exactly as Layer 1 does, and confidence is recomputed with the same `evaluate_selected_items` / `calculate_item_confidence` functions from `confidence_evaluator.py`. This keeps Layer 2's output format and confidence semantics identical to Layer 1 — only candidate *selection* changes.
+
+The model used is `claude-haiku-4-5` (`settings.llm_model`), called via `output_config.format` with a strict JSON schema (`{"selections": [{"item": ..., "candidate_index": ...}]}`) so the response is guaranteed valid JSON. If the model omits an Item or returns an index outside that Item's candidate list, Layer 2 falls back to Layer 1's heuristic (`selection_score = 0.40 × heading + 0.60 × body_vs_toc`, highest wins) for that Item only. If the API call itself fails, `ExtractionService` catches `LLMDisambiguationError` and returns the Layer 1 result unchanged — the service always returns its best available result.
+
+`ANTHROPIC_API_KEY` is read from `backend/.env` (loaded via `python-dotenv`, not committed to git).
+
 ## Output
 
 The result is a list of dictionaries in normalized document order:
