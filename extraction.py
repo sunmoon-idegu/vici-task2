@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from html import unescape
+from html import escape, unescape
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.request import Request, urlopen
 
@@ -115,6 +115,13 @@ class TextBlock:
     is_only_html_link: bool = False
 
 
+@dataclass(frozen=True)
+class RichBlock:
+    html: str
+    start: int
+    end: int
+
+
 @dataclass
 class Candidate:
     item: str
@@ -132,6 +139,7 @@ class Candidate:
 class NormalizedDocument:
     text: str
     blocks: Sequence[TextBlock]
+    rich_blocks: Sequence[RichBlock]
 
 
 def download_sec_document(
@@ -161,11 +169,11 @@ def _clean_text(text: str) -> str:
     return " ".join(text.split())
 
 
-def _build_document(
+def _build_blocks(
     raw_blocks: Iterable[
         Tuple[str, Optional[str], bool, bool, bool, bool, bool]
     ],
-) -> NormalizedDocument:
+) -> Tuple[str, List[TextBlock]]:
     pieces: List[str] = []
     blocks: List[TextBlock] = []
     position = 0
@@ -202,7 +210,7 @@ def _build_document(
             )
         )
 
-    return NormalizedDocument(text="".join(pieces), blocks=blocks)
+    return "".join(pieces), blocks
 
 
 def _local_name(element: etree._Element) -> str:
@@ -250,17 +258,61 @@ def _element_is_only_link(element: etree._Element) -> bool:
     return link_text == text
 
 
+def _nearest_table(element: etree._Element) -> Optional[etree._Element]:
+    for ancestor in element.iterancestors():
+        if _local_name(ancestor) == "table":
+            return ancestor
+    return None
+
+
+def _table_to_html(table: etree._Element) -> str:
+    rows = []
+    for row in table.xpath(".//*[local-name()='tr']"):
+        cells = []
+        for cell in row.xpath(
+            "./*[local-name()='th' or local-name()='td']"
+        ):
+            tag = _local_name(cell)
+            attributes = []
+            for name in ("colspan", "rowspan"):
+                value = cell.get(name)
+                if value and value.isdigit():
+                    attributes.append(f' {name}="{value}"')
+            text = escape(_clean_text(" ".join(cell.itertext())))
+            cells.append(
+                f"<{tag}{''.join(attributes)}>{text}</{tag}>"
+            )
+        if cells:
+            rows.append(f"<tr>{''.join(cells)}</tr>")
+    return f"<table><tbody>{''.join(rows)}</tbody></table>"
+
+
+def _element_to_html(element: etree._Element, text: str) -> str:
+    escaped = escape(text)
+    tag = _local_name(element)
+    if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+        return f"<{tag}>{escaped}</{tag}>"
+    if tag == "li":
+        return f"<ul><li>{escaped}</li></ul>"
+    if tag == "pre":
+        return f"<pre>{escaped}</pre>"
+    return f"<p>{escaped}</p>"
+
+
 def normalize_html_document(data: bytes) -> NormalizedDocument:
     root = html.fromstring(data)
     for unwanted in root.xpath("//script | //style | //noscript"):
         unwanted.drop_tree()
 
     raw_blocks = []
+    elements = []
     for element in root.iter():
         tag = _local_name(element)
         if tag not in BLOCK_TAGS or _has_block_descendant(element):
             continue
         text = " ".join(element.itertext())
+        if not _clean_text(text):
+            continue
         raw_blocks.append(
             (
                 text,
@@ -272,7 +324,50 @@ def normalize_html_document(data: bytes) -> NormalizedDocument:
                 _element_is_only_link(element),
             )
         )
-    return _build_document(raw_blocks)
+        elements.append(element)
+
+    normalized_text, blocks = _build_blocks(raw_blocks)
+    rich_blocks = []
+    handled_tables = set()
+    for element, block in zip(elements, blocks):
+        table = _nearest_table(element)
+        if table is None and _local_name(element) == "table":
+            table = element
+        if table is not None:
+            table_id = id(table)
+            if table_id in handled_tables:
+                continue
+            handled_tables.add(table_id)
+            table_indexes = [
+                index
+                for index, other_element in enumerate(elements)
+                if other_element is table or table in other_element.iterancestors()
+            ]
+            if not table_indexes:
+                continue
+            first = blocks[min(table_indexes)]
+            last = blocks[max(table_indexes)]
+            rich_blocks.append(
+                RichBlock(
+                    html=_table_to_html(table),
+                    start=first.start,
+                    end=last.end,
+                )
+            )
+            continue
+        rich_blocks.append(
+            RichBlock(
+                html=_element_to_html(element, block.text),
+                start=block.start,
+                end=block.end,
+            )
+        )
+    rich_blocks.sort(key=lambda rich_block: rich_block.start)
+    return NormalizedDocument(
+        text=normalized_text,
+        blocks=blocks,
+        rich_blocks=rich_blocks,
+    )
 
 
 def select_10k_document(submission: str) -> Tuple[str, str]:
@@ -335,7 +430,19 @@ def normalize_text_document(data: bytes) -> NormalizedDocument:
                 False,
             )
         )
-    return _build_document(raw_blocks)
+    normalized_text, blocks = _build_blocks(raw_blocks)
+    return NormalizedDocument(
+        text=normalized_text,
+        blocks=blocks,
+        rich_blocks=[
+            RichBlock(
+                html=f"<p>{escape(block.text)}</p>",
+                start=block.start,
+                end=block.end,
+            )
+            for block in blocks
+        ],
+    )
 
 
 def _heading_candidate(block: TextBlock) -> Optional[Candidate]:
@@ -455,6 +562,11 @@ def evaluate_selected_items(
 
         start = candidate.block.start
         content = document.text[start:end]
+        content_html = "".join(
+            rich_block.html
+            for rich_block in document.rich_blocks
+            if start <= rich_block.start < end
+        )
         body_content = document.text[candidate.block.end:end].strip()
         skipped_confidences = [
             other.heading
@@ -491,6 +603,7 @@ def evaluate_selected_items(
                 "item": candidate.item,
                 "title": candidate.title,
                 "content": content,
+                "content_html": content_html,
                 "start": start,
                 "end": end,
                 "confidence": {
