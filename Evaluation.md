@@ -1,5 +1,7 @@
 # Evaluation
 
+This document explains in detail how confidence is calculated for each extracted Item and for the overall filing extraction. It defines the scoring signals, formulas, thresholds, examples, and validation rules used to decide whether an extraction result is reliable enough to return or should continue to the next extraction layer.
+
 ## Item-Level Confidence
 
 Each extracted Item is evaluated using three signals:
@@ -277,6 +279,8 @@ start >= end
 section overlaps another extracted Item
 content != source[start:end]
 ```
+
+`content_html` is not used in confidence calculations. It is a sanitized presentation representation that preserves tables. The normalized `content` string remains the source of truth for offsets and section validation.
 
 #### Examples
 

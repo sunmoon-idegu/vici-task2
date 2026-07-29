@@ -1,5 +1,7 @@
 # Design Discussion
 
+This document records the current system scope, architectural decisions, layered extraction strategy, and the reasoning behind the implementation choices. It describes what the system is intended to do and how the extraction layers work together.
+
 ## Initial Scope
 
 The first phase will not include a frontend or backend service. It will implement a simple Python function with the following contract:
@@ -67,6 +69,7 @@ The returned value is a list of dictionaries in document order:
         "item": "1A",
         "title": "RISK FACTORS",
         "content": "...",
+        "content_html": "<h3>ITEM 1A. RISK FACTORS</h3><p>...</p>",
         "start": 124745,
         "end": 217125,
         "confidence": {
@@ -84,6 +87,8 @@ The content is always a direct slice of normalized source text:
 ```python
 content == normalized_text[start:end]
 ```
+
+`content_html` is a sanitized presentation representation. HTML tables preserve their rows, cells, `colspan`, and `rowspan`, while `content` remains unchanged for offsets and confidence evaluation.
 
 Initial live SEC tests:
 

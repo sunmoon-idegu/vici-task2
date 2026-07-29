@@ -1,5 +1,7 @@
 # vici-task2
 
+This document contains the original task statement and defines the overall requirements for extracting Item-level content from SEC Form 10-K filings.
+
 ## 題目二：SEC 10-K 財報 Item-level 結構化抽取
 
 美國上市公司每年向 SEC 提交的 10-K 年度報告有規範的結構（Part I–IV 底下的 Item 1–16），但實際檔案格式變異極大。
