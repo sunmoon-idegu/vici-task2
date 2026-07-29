@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from app.models.filing_document import FilingDocument
 
 
-SUPPORTED_FORM_TYPES = frozenset({"10-K", "10-K405"})
+SUPPORTED_FORM_TYPES = frozenset({"10-K", "10-K405", "10KSB", "10-KSB"})
 BLOCK_TAGS = frozenset(
     {
         "address",
@@ -68,6 +68,8 @@ EXPECTED_TITLES = {
     ),
     "7A": "Quantitative and Qualitative Disclosures About Market Risk",
     "8": "Financial Statements and Supplementary Data",
+    "8A": "Controls and Procedures",
+    "8B": "Other Information",
     "9": (
         "Changes in and Disagreements With Accountants on Accounting "
         "and Financial Disclosure"

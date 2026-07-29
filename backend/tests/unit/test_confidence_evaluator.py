@@ -26,6 +26,19 @@ class ConfidenceEvaluatorTests(unittest.TestCase):
         )
         self.assertEqual(calculate_heading_confidence(candidate), 0.0)
 
+    def test_heading_may_include_part_prefix(self) -> None:
+        candidate = HeadingCandidate(
+            text="PART II ITEM 5. MARKET FOR COMMON EQUITY",
+            expected_item="5",
+            expected_title="Market for Registrant's Common Equity",
+            is_own_dom_block=True,
+            is_bold=True,
+        )
+        self.assertGreaterEqual(
+            calculate_heading_confidence(candidate),
+            0.9,
+        )
+
     def test_filing_confidence_is_average(self) -> None:
         self.assertEqual(
             calculate_filing_confidence([0.95, 0.90, 0.85]),

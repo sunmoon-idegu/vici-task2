@@ -19,7 +19,8 @@ The backend API accepts one SEC document URL:
 Supported inputs currently include:
 
 - A direct HTML 10-K document.
-- An SEC complete-submission TXT file containing a `10-K` or `10-K405` document.
+- An SEC complete-submission TXT file containing a `10-K`, `10-K405`,
+  `10KSB`, or `10-KSB` document.
 
 Internally, the repository downloads and prepares a `FilingDocument`. Layer 1 consumes that prepared input without performing external I/O:
 
@@ -64,7 +65,8 @@ The extractor:
 
 1. Finds every `<DOCUMENT>` section.
 2. Reads its `<TYPE>`.
-3. Selects the first `10-K` or `10-K405`.
+3. Selects the first supported annual-report document: `10-K`, `10-K405`,
+   `10KSB`, or `10-KSB`.
 4. Extracts the content inside `<TEXT>`.
 5. Ignores exhibits and other document types.
 
@@ -118,16 +120,18 @@ The TXT path:
 Each normalized block is tested against an anchored Item-heading pattern:
 
 ```text
-^\s*ITEM\s+(1|1A|1B|...|16)
+^\s*(PART\s+[IVX]+\s+)?ITEM\s+(1|1A|1B|...|16)
 ```
 
-The Item identifier must appear at the beginning of the block.
+The Item identifier must appear at the beginning of the block, optionally after
+a Part marker. Historical 10-KSB filings sometimes place both on one line.
 
 Accepted:
 
 ```text
 ITEM 1A. RISK FACTORS
 ITEM 7A
+PART II ITEM 5. MARKET FOR COMMON EQUITY
 ```
 
 Rejected:
@@ -266,11 +270,14 @@ The result is a list of dictionaries in normalized document order:
 |---|---|---:|---:|
 | Coca-Cola 2025 10-K | HTML | 23 | 0.954 |
 | Coca-Cola 1994 10-K405 | Complete-submission TXT | 14 | 0.952 |
+| Network-1 Security Solutions 2006 10-KSB | TXT | 16 | 0.944 |
 
 ## Current Limitations
 
 - Direct HTML inputs are not yet independently verified as 10-K filings.
-- Only `10-K` and `10-K405` are selected from complete-submission TXT files.
+- Complete-submission TXT selection supports `10-K`, historical `10-K405`,
+  and historical `10KSB`/`10-KSB` filings. The 10-KSB title structure differs
+  from modern Form 10-K, so title-similarity confidence may be lower.
 - TXT tables remain flattened because old plain-text tables do not provide reliable structural markup.
 - Candidate selection is heuristic and has only been tested against the current examples.
 - Exact title expectations currently follow modern Form 10-K titles; historical wording only affects the small title-similarity component.

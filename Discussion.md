@@ -19,7 +19,10 @@ The expected inputs include at least these two formats:
 
 HTML and TXT inputs will be parsed separately. A complete submission text file may contain the primary filing document and multiple exhibits. The parser must first identify and isolate the actual 10-K document before extracting its Items.
 
-The initial implementation is expected to support SEC form types that are substantively 10-K annual reports, including `10-K` and the historical `10-K405`. Support for other variants will be defined as relevant test cases are added.
+The deterministic implementation supports SEC annual-report types `10-K`,
+historical `10-K405`, and historical `10KSB`/`10-KSB`. Because 10-KSB uses
+different Item titles in several years, those extractions may receive lower
+title-similarity confidence without being rejected.
 
 ## Layered Extraction Flow
 
@@ -55,7 +58,10 @@ SEC URL
 
 HTML documents are parsed with `lxml`. Visible leaf-level block elements are converted into normalized text blocks while preserving structural metadata such as tag name, bold styling, link-only content, and normalized character offsets.
 
-Complete-submission TXT files are first split into `<DOCUMENT>` sections. The parser selects the document whose `<TYPE>` is `10-K` or `10-K405`, removes SGML formatting tags, and converts the remaining lines into normalized text blocks.
+Complete-submission TXT files are first split into `<DOCUMENT>` sections. The
+parser selects the document whose `<TYPE>` is `10-K`, `10-K405`, `10KSB`, or
+`10-KSB`, removes SGML formatting tags, and converts the remaining lines into
+normalized text blocks.
 
 Only blocks beginning with a valid Item identifier become heading candidates. Each candidate receives heading and Body-versus-TOC scores from `backend/app/evaluations/confidence_evaluator.py`. When an Item occurs more than once, such as in both the TOC and body, Layer 1 selects the candidate with the strongest combined score.
 

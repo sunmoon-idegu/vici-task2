@@ -17,6 +17,10 @@ HISTORICAL_URL = (
     "https://www.sec.gov/Archives/edgar/data/21344/"
     "0000021344-95-000007.txt"
 )
+KSB_URL = (
+    "https://www.sec.gov/Archives/edgar/data/1065078/"
+    "000107261307000908/form10-ksb_14962.txt"
+)
 MODERN_ITEMS = [
     "1",
     "1A",
@@ -43,6 +47,24 @@ MODERN_ITEMS = [
     "16",
 ]
 HISTORICAL_ITEMS = [str(number) for number in range(1, 15)]
+KSB_ITEMS = [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "8A",
+    "8B",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+]
 
 
 @unittest.skipUnless(
@@ -77,3 +99,11 @@ class LiveSecExtractionTests(unittest.TestCase):
         )
         self.assertGreaterEqual(response.confidence, 0.90)
         self.assertIn("EXHIBITS", response.items[-1].title)
+
+    def test_historical_10ksb_txt(self) -> None:
+        response = self._extract(KSB_URL)
+        self.assertEqual(
+            [item.item for item in response.items],
+            KSB_ITEMS,
+        )
+        self.assertGreaterEqual(response.confidence, 0.90)

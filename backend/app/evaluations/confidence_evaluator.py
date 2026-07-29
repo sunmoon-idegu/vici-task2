@@ -22,6 +22,8 @@ VALID_ITEMS = frozenset(
         "7",
         "7A",
         "8",
+        "8A",
+        "8B",
         "9",
         "9A",
         "9B",
@@ -37,8 +39,8 @@ VALID_ITEMS = frozenset(
 )
 
 ITEM_HEADING_RE = re.compile(
-    r"^\s*item\s+"
-    r"(?P<item>1A|1B|1C|7A|9A|9B|9C|1[0-6]|[1-9])"
+    r"^\s*(?:part\s+[ivx]+\s+)?item\s+"
+    r"(?P<item>1A|1B|1C|7A|8A|8B|9A|9B|9C|1[0-6]|[1-9])"
     r"(?![A-Za-z0-9(])[.\-:–—\s]*(?P<title>.*)$",
     re.IGNORECASE,
 )
