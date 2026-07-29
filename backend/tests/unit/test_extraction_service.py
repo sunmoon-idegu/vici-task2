@@ -31,6 +31,7 @@ class ExtractionServiceTests(unittest.TestCase):
         service = ExtractionService(
             layer1=extractor,
             layer2=FakeExtractor(),
+            layer3=FakeExtractor(),
         )
         document = FilingDocument(b"prepared", "html")
 
@@ -44,6 +45,7 @@ class ExtractionServiceTests(unittest.TestCase):
         service = ExtractionService(
             layer1=FakeExtractor(error=ValueError("unsupported document")),
             layer2=FakeExtractor(),
+            layer3=FakeExtractor(),
         )
 
         with self.assertRaises(FilingExtractionError):
@@ -54,7 +56,11 @@ class ExtractionServiceTests(unittest.TestCase):
         layer2_item = {"confidence": {"score": 0.95}}
         layer1 = FakeExtractor(result=[layer1_item])
         layer2 = FakeExtractor(result=[layer2_item])
-        service = ExtractionService(layer1=layer1, layer2=layer2)
+        service = ExtractionService(
+            layer1=layer1,
+            layer2=layer2,
+            layer3=FakeExtractor(),
+        )
         document = FilingDocument(b"prepared", "html")
 
         result = service.extract(document)
@@ -63,14 +69,64 @@ class ExtractionServiceTests(unittest.TestCase):
         self.assertEqual(result.confidence, 0.95)
         self.assertEqual(result.layer, "layer2")
 
-    def test_layer2_failure_falls_back_to_layer1_result(self) -> None:
+    def test_layer2_still_low_falls_through_to_layer3(self) -> None:
+        layer1_item = {"confidence": {"score": 0.7}}
+        layer2_item = {"confidence": {"score": 0.85}}
+        layer3_item = {"confidence": {"score": 0.93}}
+        layer1 = FakeExtractor(result=[layer1_item])
+        layer2 = FakeExtractor(result=[layer2_item])
+        layer3 = FakeExtractor(result=[layer3_item])
+        service = ExtractionService(layer1=layer1, layer2=layer2, layer3=layer3)
+        document = FilingDocument(b"prepared", "html")
+
+        result = service.extract(document)
+
+        self.assertIs(layer3.received, document)
+        self.assertEqual(result.confidence, 0.93)
+        self.assertEqual(result.layer, "layer3")
+
+    def test_layer3_is_skipped_once_layer2_meets_threshold(self) -> None:
+        layer1_item = {"confidence": {"score": 0.7}}
+        layer2_item = {"confidence": {"score": 0.95}}
+        layer1 = FakeExtractor(result=[layer1_item])
+        layer2 = FakeExtractor(result=[layer2_item])
+        layer3 = FakeExtractor(result=[{"confidence": {"score": 1.0}}])
+        service = ExtractionService(layer1=layer1, layer2=layer2, layer3=layer3)
+        document = FilingDocument(b"prepared", "html")
+
+        result = service.extract(document)
+
+        self.assertIsNone(layer3.received)
+        self.assertEqual(result.confidence, 0.95)
+        self.assertEqual(result.layer, "layer2")
+
+    def test_layer2_and_layer3_failure_falls_back_to_layer1_result(self) -> None:
         layer1_item = {"confidence": {"score": 0.881}}
         layer1 = FakeExtractor(result=[layer1_item])
         layer2 = FakeExtractor(error=LLMDisambiguationError("boom"))
-        service = ExtractionService(layer1=layer1, layer2=layer2)
+        layer3 = FakeExtractor(error=LLMDisambiguationError("boom"))
+        service = ExtractionService(layer1=layer1, layer2=layer2, layer3=layer3)
         document = FilingDocument(b"prepared", "html")
 
         result = service.extract(document)
 
         self.assertEqual(result.confidence, 0.881)
         self.assertEqual(result.layer, "layer1")
+
+    def test_layer3_used_when_layer2_fails_but_layer3_succeeds(self) -> None:
+        layer1_item = {"confidence": {"score": 0.881}}
+        layer3_item = {"confidence": {"score": 0.96}}
+        layer1 = FakeExtractor(result=[layer1_item])
+        layer2 = FakeExtractor(error=LLMDisambiguationError("boom"))
+        layer3 = FakeExtractor(result=[layer3_item])
+        service = ExtractionService(layer1=layer1, layer2=layer2, layer3=layer3)
+        document = FilingDocument(b"prepared", "html")
+
+        result = service.extract(document)
+
+        self.assertEqual(result.confidence, 0.96)
+        self.assertEqual(result.layer, "layer3")
+
+
+if __name__ == "__main__":
+    unittest.main()

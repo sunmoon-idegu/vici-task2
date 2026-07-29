@@ -97,6 +97,7 @@ def _normalize_item_code(raw: str) -> Optional[str]:
 # Haiku 4.5 rate rather than raising.
 MODEL_PRICING_PER_MTOK = {
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
+    "claude-sonnet-5": {"input": 3.00, "output": 15.00},
 }
 
 
@@ -129,15 +130,22 @@ def _build_candidate(
 
 
 class Layer2Extractor:
-    """Re-extract Item boundaries with a language model over the whole filing."""
+    """Re-extract Item boundaries with a language model over the whole filing.
+
+    The extraction logic does not depend on which model answers it --
+    only the `model` id changes. The same class is used for both the
+    small-model pass (Layer 2, e.g. Haiku) and the stronger-model
+    fallback pass (Layer 3, e.g. Sonnet); the caller just constructs a
+    second instance with a different `model`.
+    """
 
     def __init__(
         self,
-        client: Optional[Anthropic] = None,
         model: Optional[str] = None,
+        client: Optional[Anthropic] = None,
     ) -> None:
-        self.client = client or Anthropic()
         self.model = model or settings.llm_model
+        self.client = client or Anthropic()
 
     def extract(self, document: "FilingDocument") -> List[dict]:
         normalized = _normalize(document)

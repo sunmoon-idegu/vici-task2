@@ -20,9 +20,13 @@ class ExtractionService:
         self,
         layer1: Layer1Extractor = None,
         layer2: Layer2Extractor = None,
+        layer3: Layer2Extractor = None,
     ) -> None:
         self.layer1 = layer1 or Layer1Extractor()
-        self.layer2 = layer2 or Layer2Extractor()
+        self.layer2 = layer2 or Layer2Extractor(model=settings.llm_model_layer2)
+        self.layer3 = layer3 or Layer2Extractor(
+            model=settings.llm_model_layer3
+        )
 
     def extract(self, document: FilingDocument) -> ExtractionResult:
         try:
@@ -45,6 +49,18 @@ class ExtractionService:
                     item["confidence"]["score"] for item in items
                 )
                 layer = "layer2"
+
+        if confidence < settings.confidence_threshold:
+            try:
+                layer3_items = self.layer3.extract(document)
+            except (ValueError, LLMDisambiguationError):
+                layer3_items = None
+            if layer3_items is not None:
+                items = layer3_items
+                confidence = calculate_filing_confidence(
+                    item["confidence"]["score"] for item in items
+                )
+                layer = "layer3"
 
         return ExtractionResult(
             items=items,

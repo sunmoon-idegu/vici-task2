@@ -16,7 +16,7 @@ class Settings:
         "vici-task2/0.1 (educational SEC filing extractor)"
     )
     sec_timeout_seconds: float = 30.0
-    llm_model: str = "claude-haiku-4-5"
-
+    llm_model_layer2: str = "claude-haiku-4-5"
+    llm_model_layer3: str = "claude-sonnet-5"
 
 settings = Settings()
