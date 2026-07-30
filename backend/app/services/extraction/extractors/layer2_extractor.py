@@ -144,7 +144,7 @@ class Layer2Extractor:
         model: Optional[str] = None,
         client: Optional[Anthropic] = None,
     ) -> None:
-        self.model = model or settings.llm_model
+        self.model = model or settings.llm_model_layer2
         self.client = client or Anthropic()
 
     def extract(self, document: "FilingDocument") -> List[dict]:
