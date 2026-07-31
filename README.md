@@ -17,6 +17,31 @@ This document contains the original task statement and defines the overall requi
 
 ---
 
+## 輸入格式
+
+前端與後端 API 目前只接受一種輸入：一個直接指向 SEC EDGAR 文件本身的 URL（不支援 CIK、accession number、ticker 或檔案上傳）。
+
+驗證規則（見 `backend/app/repositories/sec_filing_repository.py` 的 `validate_url`）：
+
+- 網域必須是 `https://www.sec.gov`；轉址後的最終網址也會重新驗證一次，避免透過 redirect 繞過限制。
+- 網址必須以 `/Archives/edgar/data/` 開頭，並直接指向文件本身（`.htm` / `.html` / `.txt` 結尾）——不能是 filing 的 index/landing page。
+
+支援的文件型別：
+
+- HTML 10-K 文件（單一 primary document）。
+- SEC complete-submission TXT 檔（整份 filing 的純文字版本，內含 `10-K`／`10-K405`／`10-KSB`／`10KSB` 文件）。
+
+範例：
+
+| 格式 | 公司／年份 | URL |
+|---|---|---|
+| htm（較新格式） | Coca-Cola, 2025 10-K | `https://www.sec.gov/Archives/edgar/data/21344/000162828026010047/ko-20251231.htm` |
+| txt（較舊格式） | Coca-Cola, 1994 10-K | `https://www.sec.gov/Archives/edgar/data/21344/0000021344-95-000007.txt` |
+
+![Input](images/input.png)
+
+---
+
 ## 系統設計與評估
 
 以下對應上方「我們會看」的每一項，並附上實際跑過的資料佐證。完整結果在 `backend/tests/layer1_confidence_survey.csv`（50 筆真實 SEC 10-K filings，涵蓋大型企業與小型/利基產業公司、1994–2026、TXT 與 HTML 兩種格式）。
