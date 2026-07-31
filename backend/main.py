@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(extraction_router, prefix=settings.api_prefix)
 
 
+@app.head("/health", tags=["health"])
 @app.get("/health", tags=["health"])
 def health() -> dict:
     return {"status": "ok"}
